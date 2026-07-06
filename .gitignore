@@ -39,4 +39,3 @@ env/
 .DS_Store
 Thumbs.db
 
-dashboard/utils/db.py
