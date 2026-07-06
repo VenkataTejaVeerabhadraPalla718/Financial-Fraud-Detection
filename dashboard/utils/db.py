@@ -1,23 +1,48 @@
-import psycopg2
+import os
+
 import pandas as pd
+import psycopg2
 
 
-DB_CONFIG = {
+LOCAL_DB_CONFIG = {
     "host": "127.0.0.1",
     "port": 5432,
     "database": "fraud_db",
     "user": "postgres",
-    "password": "Bhadra@7879"
+    "password": os.getenv("LOCAL_DB_PASSWORD", ""),
+    "sslmode": "prefer"
 }
 
 
 def get_connection():
+    """
+    Uses Neon credentials on Streamlit Cloud.
+    Uses local PostgreSQL credentials when running locally.
+    """
+    try:
+        import streamlit as st
+
+        if "DB_HOST" in st.secrets:
+            return psycopg2.connect(
+                host=st.secrets["DB_HOST"],
+                port=st.secrets.get("DB_PORT", "5432"),
+                database=st.secrets["DB_NAME"],
+                user=st.secrets["DB_USER"],
+                password=st.secrets["DB_PASSWORD"],
+                sslmode=st.secrets.get("DB_SSLMODE", "require"),
+                connect_timeout=15
+            )
+
+    except Exception:
+        pass
+
     return psycopg2.connect(
-        host=DB_CONFIG["host"],
-        port=DB_CONFIG["port"],
-        database=DB_CONFIG["database"],
-        user=DB_CONFIG["user"],
-        password=DB_CONFIG["password"],
+        host=LOCAL_DB_CONFIG["host"],
+        port=LOCAL_DB_CONFIG["port"],
+        database=LOCAL_DB_CONFIG["database"],
+        user=LOCAL_DB_CONFIG["user"],
+        password=LOCAL_DB_CONFIG["password"],
+        sslmode=LOCAL_DB_CONFIG["sslmode"],
         connect_timeout=10
     )
 
@@ -48,9 +73,7 @@ def load_table(table_name):
 
     try:
         conn = get_connection()
-
         query = f"SELECT * FROM {table_name}"
-
         return pd.read_sql(query, conn)
 
     finally:
@@ -92,22 +115,26 @@ def kafka_summary():
             "last_time": None
         }
 
-    topic_column = "topic_name"
+    topic_column = None
 
-    if "topic_name" not in df.columns:
-        if "topic" in df.columns:
-            topic_column = "topic"
-        else:
-            topic_column = None
+    if "topic_name" in df.columns:
+        topic_column = "topic_name"
+    elif "topic" in df.columns:
+        topic_column = "topic"
 
-    created_at_column = "created_at"
-
-    if created_at_column not in df.columns:
-        created_at_column = None
+    created_at_column = (
+        "created_at"
+        if "created_at" in df.columns
+        else None
+    )
 
     return {
         "messages": len(df),
-        "topics": df[topic_column].nunique() if topic_column else 0,
+        "topics": (
+            df[topic_column].nunique()
+            if topic_column
+            else 0
+        ),
         "last_time": (
             df.iloc[-1][created_at_column]
             if created_at_column
@@ -118,10 +145,10 @@ def kafka_summary():
 
 def get_counts():
     conn = None
+    cursor = None
 
     try:
         conn = get_connection()
-
         cursor = conn.cursor()
 
         cursor.execute(
@@ -139,8 +166,6 @@ def get_counts():
         )
         synthetic_count = cursor.fetchone()[0]
 
-        cursor.close()
-
         return (
             financial_count,
             credit_count,
@@ -148,6 +173,9 @@ def get_counts():
         )
 
     finally:
+        if cursor is not None:
+            cursor.close()
+
         if conn is not None:
             conn.close()
 
