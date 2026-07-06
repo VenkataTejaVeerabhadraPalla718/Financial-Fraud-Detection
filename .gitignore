@@ -1,0 +1,40 @@
+# Python and cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+env/
+.conda/
+
+# Python / ML models
+*.pkl
+*.joblib
+*.h5
+*.keras
+*.onnx
+*.pt
+*.pth
+
+# Datasets and generated exports
+*.csv
+*.xlsx
+*.xls
+*.parquet
+*.json
+*.zip
+
+# Databases and logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Streamlit secrets and local configuration
+.streamlit/secrets.toml
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
